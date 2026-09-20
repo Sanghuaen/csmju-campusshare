@@ -1,25 +1,110 @@
-# ร่างเบื้องต้น — ยังไม่ใช่ template จริงจาก PM (เรายังไม่ได้รับ template ฉบับใช้งานจริง)
-# ใช้เป็นแนวทางไว้ก่อน ต้องเทียบกับ template จริงตอนขึ้นทะเบียนอีกที
+# subsystem.yaml — Manifest ของระบบย่อย CampusShare
+# วางที่ root ของ repo | ต้องผ่าน PL อนุมัติก่อน merge (CODEOWNERS)
+# หมายเหตุ: schema ฉบับทางการรอ PM ออก (ดู 08-questions-to-pm.md ข้อ B8)
+# ทุกค่าที่เป็น <...> ต้องกรอกก่อนส่ง PL | ค่าที่มี "TODO-PL" คือจุดที่ต้องให้ PL ยืนยัน
 
-name: csmju-campusshare
-display_name: "CampusShare"
-owner: "<username ของ AIE เจ้าของระบบ>"
-repo: github.com/csmju2030/csmju-campusshare
-standards_version: "1.0.0"
+# ---------- ข้อมูลระบบ ----------
+subsystem_name: "csmju-campusshare"      # kebab-case ต้องตรงกับชื่อ repo
+display_name: "CampusShare"              # ชื่อที่แสดงบน Dashboard ส่วนกลาง
+description: "พื้นที่กลางให้นักศึกษาและอาจารย์ในสาขา ลงของ แบ่งปัน ให้ยืม หรือให้ต่อ พร้อมระบบขอยืม-อนุมัติ-คืน"
+owner: "<username ของ AIE>"              # username ของ AIE เจ้าของ (ต้องเป็น username ไม่ใช่ชื่อ)
+team_lead: "<username ของ PL>"           # username ของ PL
+status: "proposed"                       # proposed | staging | production | deprecated
+standards_version: "1.0.0"               # ต้องตรงกับ STANDARDS.lock
+repository: "https://github.com/csmju2030/csmju-campusshare"
+contact: "<username ของ AIE>@mju.ac.th"
 
+# ---------- การเข้าถึงระดับ Layer 1 ----------
+# กลุ่มผู้ใช้ระดับองค์กรที่ "เห็นระบบนี้บน Dashboard" หลัง login
+visible_to_layer1:
+  - student
+  - staff
+  - admin
+# alumni ไม่เห็นระบบนี้ (ระบบเป็นการใช้ทรัพยากรร่วมกันภายในสาขา)
+# TODO-PL: Gateway ส่งมาแค่ X-Faculty (ระดับคณะ) ไม่มี department — ยังกรอง "เฉพาะสาขา CS"
+#          ที่ระดับ Layer 1 ไม่ได้ รอ PL/PM ตอบเรื่องเพิ่ม department ใน JWT/header
+
+# ---------- สิทธิ์ระดับ Layer 2 (นิยามเองได้ แต่ต้องประกาศที่นี่) ----------
+layer2_roles:
+  - name: "member"
+    display_name: "สมาชิก"
+    description: "ลงของให้ยืม/ให้ต่อ ค้นหา ส่งคำขอยืม อนุมัติ/ปฏิเสธคำขอของรายการตัวเอง ติดตามการยืม-คืน"
+  - name: "admin"
+    display_name: "ผู้ดูแลสาขา"
+    description: "ตรวจสอบและจัดการรายการทั้งหมด ดูสถิติการใช้งาน ตรวจรายการที่มีปัญหา (เช่น เลยกำหนดคืน)"
+
+# ---------- แผนที่สิทธิ์อัตโนมัติ Layer 1 → Layer 2 ----------
+# ผู้ใช้ที่ login เข้ามาจะได้ Layer 2 role นี้โดยอัตโนมัติ
+# หลักการ: สิทธิ์ผูกกับ "ตำแหน่ง" ไม่ผูกกับตัวบุคคล เพื่อไม่ให้ระบบพึ่งคนใดคนหนึ่ง
 default_role_mapping:
-  student: student   # Layer 2 role "student" = สิทธิ์นักศึกษาในระบบเรา
-  staff: admin        # อาจารย์/เจ้าหน้าที่ (staff) ได้สิทธิ์ Admin สาขาอัตโนมัติ
-  # admin: admin       # (Layer1 admin คือ admin ระดับมหาวิทยาลัย ไม่ผูกอัตโนมัติ รอพิจารณา)
+  student: "member"
+  staff:   "admin"      # TODO-PL: ยืนยันว่า staff ทุกคนเป็น admin ของระบบนี้ได้
+  admin:   "admin"
+  # alumni: ไม่ map เพราะไม่เห็นระบบนี้
 
-requested_exceptions:
-  - username: "<username ของ AIE เจ้าของระบบ>"
-    role: admin  # ขอสิทธิ์ Admin ระดับปฏิบัติการ (operational) ระหว่างพัฒนา/ดูแลระบบ
-    reason: "AIE เจ้าของระบบ ดูแลปฏิบัติการประจำวันระหว่างพัฒนาและช่วง MVP"
+# ---------- ข้อยกเว้นรายบุคคล (ต้องผ่าน PL → Admin ส่วนกลาง) ----------
+# ไม่ขอ exception: AIE ไม่จำเป็นต้องเป็น admin ของระบบ และ staff ได้ admin ผ่าน default_role_mapping อยู่แล้ว
+# (ถ้าภายหลังต้องขอ ต้องมี approved_by, approved_at และ expires_at เสมอ ห้ามให้สิทธิ์ถาวร)
+role_exceptions: []
 
-public_endpoints:
-  - "GET /api/v1/listings"
-  - "GET /api/v1/listings/:id"
+# ---------- Endpoint ----------
+base_url: "https://campusshare.csmju2030.ac.th"
+public_endpoints:                        # ไม่ต้องมี token — ที่เหลือ protected โดย default
   - "GET /health"
+# รายการของเปิดให้เฉพาะสมาชิกที่ login แล้ว จึงไม่ประกาศเป็น public
 
-callback_url: "https://campusshare.csmju2030.ac.th/auth/callback" # ตัวอย่าง รอโดเมนจริง
+# สิทธิ์ระดับ endpoint (CI ใช้ตรวจว่าโค้ดตรงกับที่ประกาศ)
+# TODO: ร่างจากสถาปัตยกรรม v0.1 — ให้เทียบกับ controller จริงและ Postman collection ก่อนส่ง
+# หมายเหตุ: ตาม api-conventions.md ห้ามมี verb ใน path การอนุมัติ/ปฏิเสธ/คืนจึงทำผ่าน
+#           PATCH /borrow-requests/{id} พร้อม body ระบุ status (approved | rejected | returned)
+endpoint_permissions:
+  # Listings
+  - path: "GET /api/v1/listings"
+    allowed_roles: ["member", "admin"]
+  - path: "POST /api/v1/listings"
+    allowed_roles: ["member", "admin"]
+  - path: "PATCH /api/v1/listings/{id}"          # เจ้าของรายการหรือ admin (ตรวจที่ business logic)
+    allowed_roles: ["member", "admin"]
+  - path: "DELETE /api/v1/listings/{id}"         # เจ้าของรายการหรือ admin (ตรวจที่ business logic)
+    allowed_roles: ["member", "admin"]
+
+  # Borrow requests
+  - path: "GET /api/v1/borrow-requests"          # member เห็นเฉพาะที่เกี่ยวกับตัวเอง
+    allowed_roles: ["member", "admin"]
+  - path: "POST /api/v1/borrow-requests"
+    allowed_roles: ["member", "admin"]
+  - path: "PATCH /api/v1/borrow-requests/{id}"   # เจ้าของอนุมัติ/ปฏิเสธ/รับคืน, ผู้ขอยกเลิก
+    allowed_roles: ["member", "admin"]
+
+  # Notifications (in-app)
+  - path: "GET /api/v1/notifications"
+    allowed_roles: ["member", "admin"]
+  - path: "PATCH /api/v1/notifications/{id}"     # ทำเครื่องหมายว่าอ่านแล้ว
+    allowed_roles: ["member", "admin"]
+
+  # Admin
+  - path: "GET /api/v1/reports"
+    allowed_roles: ["admin"]
+  - path: "GET /api/v1/admin/listings"
+    allowed_roles: ["admin"]
+
+# ---------- ข้อมูลที่ระบบนี้ต้องใช้จาก Core ----------
+core_data_dependencies:
+  - api: "GET /v1/faculties"
+    reason: "อ้างอิงรหัสคณะ (ไม่ hardcode รายการคณะเอง)"
+  - api: "GET /v1/users/{username}"
+    reason: "แสดงชื่อ-สกุลเจ้าของของ/ผู้ขอยืม (ไม่เก็บซ้ำในฐานข้อมูลตัวเอง)"
+
+# ---------- ข้อมูลที่ระบบนี้เปิดให้ระบบอื่นใช้ ----------
+# ยังไม่เปิด API ให้ระบบอื่น เพราะมาตรฐานการเรียกข้ามระบบย่อยยังไม่ถูกกำหนด (ส่งเป็นคำถามถึง PL แล้ว)
+provides_to_other_subsystems: []
+
+# ---------- ข้อมูลส่วนบุคคลที่ระบบนี้เก็บ (PDPA) ----------
+personal_data:
+  collected:
+    - field: "username"
+      purpose: "ระบุเจ้าของรายการและผู้ขอยืม (owner_username / requester_username)"
+    - field: "message"
+      purpose: "ข้อความสั้นแนบคำขอยืม และข้อความตอบกลับของเจ้าของ (ใช้แทนระบบแชท)"
+  # ไม่เก็บ credential, ชื่อ-สกุล, อีเมล หรือเบอร์โทร — ดึงจาก Core ตอนแสดงผลเท่านั้น
+  retention_days: 365                    # TODO-PL: เสนอ 1 ปีหลังจบรายการ แล้วลบ/ทำให้ไม่ระบุตัวตน
