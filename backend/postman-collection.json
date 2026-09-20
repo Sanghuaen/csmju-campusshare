@@ -1,0 +1,213 @@
+{
+  "info": {
+    "name": "CampusShare API (local dev)",
+    "description": "ทดสอบ API ของ CampusShare บนเครื่อง dev — ไม่มี API Gateway จริงคั่นกลาง จึงต้องใส่ header X-User-Id / X-Layer1-Role / X-Faculty เองแทน Gateway (โปรดักชันจริง Gateway จะแนบให้อัตโนมัติ ห้ามให้ client ใส่เองได้แบบนี้)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "listing_id", "value": "" },
+    { "key": "request_id", "value": "" },
+    { "key": "report_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Health Check",
+      "request": { "method": "GET", "url": "{{base_url}}/health" }
+    },
+    {
+      "name": "02 - List all listings (public)",
+      "request": { "method": "GET", "url": "{{base_url}}/api/v1/listings" }
+    },
+    {
+      "name": "03 - Create listing (as student owner)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('listing_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-User-Id", "value": "65123456" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/listings",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"สาย HDMI 2 เมตร (ทดสอบ)\",\n  \"description\": \"ทดสอบผ่าน Postman\",\n  \"category\": \"cables_connectors\",\n  \"listingType\": \"borrow\"\n}"
+        }
+      }
+    },
+    {
+      "name": "04 - Create borrow request (as another student)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('request_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-User-Id", "value": "66111222" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/borrow-requests",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"listing_id\": \"{{listing_id}}\",\n  \"message\": \"ขอยืมใช้พรุ่งนี้ครับ\"\n}"
+        }
+      }
+    },
+    {
+      "name": "05 - Owner approves request",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-User-Id", "value": "65123456" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/borrow-requests/{{request_id}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"approved\",\n  \"response_message\": \"เอาไปได้เลย\",\n  \"due_date\": \"2026-12-31T00:00:00+07:00\"\n}"
+        }
+      }
+    },
+    {
+      "name": "06 - Requester checks 'mine'",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "66111222" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/borrow-requests/mine"
+      }
+    },
+    {
+      "name": "07 - Requester checks notifications",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "65123456" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/notifications"
+      }
+    },
+    {
+      "name": "08 - Report a problem (as any logged-in user)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.id) pm.collectionVariables.set('report_id', json.data.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-User-Id", "value": "66111222" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/reports",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"target_type\": \"listing\",\n  \"target_id\": \"{{listing_id}}\",\n  \"reason\": \"ของไม่ตรงกับที่ลงรูปไว้\"\n}"
+        }
+      }
+    },
+    {
+      "name": "09 - [Admin] View stats",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "60000001" },
+          { "key": "X-Layer1-Role", "value": "staff" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/admin/stats"
+      }
+    },
+    {
+      "name": "10 - [Admin] View open reports",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "60000001" },
+          { "key": "X-Layer1-Role", "value": "staff" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/admin/reports"
+      }
+    },
+    {
+      "name": "11 - [Admin] Resolve a report",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-User-Id", "value": "60000001" },
+          { "key": "X-Layer1-Role", "value": "staff" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/admin/reports/{{report_id}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note\": \"คุยกับเจ้าของแล้ว แก้คำอธิบายให้ตรงแล้ว\"\n}"
+        }
+      }
+    },
+    {
+      "name": "12 - [Admin] View overdue requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "60000001" },
+          { "key": "X-Layer1-Role", "value": "staff" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/admin/overdue-requests"
+      }
+    },
+    {
+      "name": "13 - Student tries /admin/stats -> should be 403 FORBIDDEN",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-User-Id", "value": "66111222" },
+          { "key": "X-Layer1-Role", "value": "student" },
+          { "key": "X-Faculty", "value": "science" }
+        ],
+        "url": "{{base_url}}/api/v1/admin/stats"
+      }
+    }
+  ]
+}

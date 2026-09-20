@@ -1,0 +1,152 @@
+// CampusShare — Prisma schema
+// อ้างอิงชื่อฟิลด์ตาม data-dictionary.md (username, faculty ฯลฯ) ห้ามเปลี่ยนชื่อเอง
+// department ยังไม่มาจาก Core จริง (รอ PL/PM ยืนยัน) — hardcode ค่าเดียวไปก่อนแต่เตรียม field ไว้
+// เพื่อไม่ต้อง migrate ใหม่ทีหลังถ้าเปิดหลายสาขา (ดูบันทึกในไฟล์ DECISIONS.md)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ListingType {
+  borrow
+  giveaway
+}
+
+enum ListingStatus {
+  available
+  pending
+  borrowed
+  given_away // terminal — เฉพาะ listing_type = giveaway ที่ส่งมอบแล้ว ไม่มีทางย้อนกลับ
+  unavailable
+  archived // auto-archive เมื่อไม่มีการอัปเดตนาน (ดูหลักการ fail-safe)
+}
+
+enum ListingCategory {
+  books_materials     // หนังสือ/เอกสารประกอบการเรียน
+  calculators         // เครื่องคิดเลข
+  cables_connectors    // สาย HDMI/LAN/Adapter
+  project_equipment    // อุปกรณ์ทำ Project
+  camera_photography   // กล้อง/Tripod
+  tools                // อุปกรณ์เครื่องมือ
+  club_activity_gear   // อุปกรณ์กิจกรรมสาขา
+}
+
+enum BorrowRequestStatus {
+  pending
+  approved
+  rejected
+  returned
+  overdue     // auto-flag เมื่อเกินกำหนดคืน (ไม่ต้องรอ Admin ไล่เช็ค)
+  expired     // auto-reject เมื่อเจ้าของไม่ตอบภายในเวลาที่กำหนด
+}
+
+enum NotificationType {
+  new_request
+  request_approved
+  request_rejected
+  return_reminder
+  overdue_flag
+}
+
+enum ReportTargetType {
+  listing
+  borrow_request
+}
+
+enum ReportStatus {
+  open
+  resolved
+}
+
+model Listing {
+  id            String          @id @default(cuid())
+  ownerUsername String          @map("owner_username") // อ้างอิง username กลางจาก Core เท่านั้น
+  title         String
+  description   String?
+  category      ListingCategory
+  listingType   ListingType     @map("listing_type")
+  status        ListingStatus   @default(available)
+
+  // เตรียมรองรับ multi-department ในอนาคต — ตอนนี้ hardcode "computer-science" ที่ชั้น service
+  department    String          @default("computer-science")
+
+  lastActivityAt DateTime       @default(now()) @map("last_activity_at") // ใช้เช็ค auto-archive
+
+  borrowRequests BorrowRequest[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("listings")
+  @@index([status])
+  @@index([category])
+  @@index([ownerUsername])
+}
+
+model BorrowRequest {
+  id                String              @id @default(cuid())
+  listingId         String              @map("listing_id")
+  listing           Listing             @relation(fields: [listingId], references: [id])
+
+  requesterUsername String              @map("requester_username")
+  message           String?             // ข้อความสั้นตอนขอยืม
+  responseMessage   String?             @map("response_message") // ข้อความสั้นตอนเจ้าของตอบ
+
+  status            BorrowRequestStatus @default(pending)
+
+  dueDate           DateTime?           @map("due_date") // กำหนดคืน (ระบุตอนอนุมัติ)
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  respondedAt DateTime? @map("responded_at")
+  returnedAt  DateTime? @map("returned_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("borrow_requests")
+  @@index([listingId])
+  @@index([requesterUsername])
+  @@index([status])
+}
+
+// In-app notification — layer หลักที่ต้องมีเสมอ (ไม่พึ่งพา LINE หรือ service ภายนอกใดๆ)
+model Notification {
+  id             String           @id @default(cuid())
+  recipientUsername String        @map("recipient_username")
+  type           NotificationType
+  title          String
+  body           String?
+  refListingId   String?          @map("ref_listing_id")
+  refRequestId   String?          @map("ref_request_id")
+  isRead         Boolean          @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+  @@index([recipientUsername, isRead])
+}
+
+// รายงานปัญหา — หลักการ self-service: ผู้ใช้ flag กันเอง แทนที่ Admin ต้องไล่ตรวจทุกรายการ
+// Admin เข้ามาดูเฉพาะที่ถูก flag เท่านั้น (ดู DECISIONS.md หลักการ fail-safe/self-service)
+model Report {
+  id               String           @id @default(cuid())
+  targetType       ReportTargetType @map("target_type")
+  targetId         String           @map("target_id") // listingId หรือ borrowRequestId แล้วแต่ targetType
+  reporterUsername String           @map("reporter_username")
+  reason           String
+
+  status     ReportStatus @default(open)
+  resolvedBy String?      @map("resolved_by") // username ของ Admin ที่ปิดเรื่อง
+  resolvedAt DateTime?    @map("resolved_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("reports")
+  @@index([status])
+  @@index([targetType, targetId])
+}

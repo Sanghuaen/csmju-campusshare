@@ -1,0 +1,25 @@
+# ร่างเบื้องต้น — ยังไม่ใช่ template จริงจาก PM (เรายังไม่ได้รับ template ฉบับใช้งานจริง)
+# ใช้เป็นแนวทางไว้ก่อน ต้องเทียบกับ template จริงตอนขึ้นทะเบียนอีกที
+
+name: csmju-campusshare
+display_name: "CampusShare"
+owner: "<username ของ AIE เจ้าของระบบ>"
+repo: github.com/csmju2030/csmju-campusshare
+standards_version: "1.0.0"
+
+default_role_mapping:
+  student: student   # Layer 2 role "student" = สิทธิ์นักศึกษาในระบบเรา
+  staff: admin        # อาจารย์/เจ้าหน้าที่ (staff) ได้สิทธิ์ Admin สาขาอัตโนมัติ
+  # admin: admin       # (Layer1 admin คือ admin ระดับมหาวิทยาลัย ไม่ผูกอัตโนมัติ รอพิจารณา)
+
+requested_exceptions:
+  - username: "<username ของ AIE เจ้าของระบบ>"
+    role: admin  # ขอสิทธิ์ Admin ระดับปฏิบัติการ (operational) ระหว่างพัฒนา/ดูแลระบบ
+    reason: "AIE เจ้าของระบบ ดูแลปฏิบัติการประจำวันระหว่างพัฒนาและช่วง MVP"
+
+public_endpoints:
+  - "GET /api/v1/listings"
+  - "GET /api/v1/listings/:id"
+  - "GET /health"
+
+callback_url: "https://campusshare.csmju2030.ac.th/auth/callback" # ตัวอย่าง รอโดเมนจริง
